@@ -55,7 +55,7 @@
   var mpResultTitle = $("mp-result-title"), mpResultWinner = $("mp-result-winner");
   var mpMyScoreEl = $("mp-my-score"), mpOppScoreEl = $("mp-opp-score");
   var mpBtn = $("mp-btn"), mpTurnLabel = $("mp-turn-label"), mpTurnText = $("mp-turn-text"), mpOppScoreElFull = $("mp-opp-score-full");
-  var mpCopyBtn = $("mp-copy-btn");
+  var mpCopyBtn = $("mp-copy-btn"), mpInviteBtn = $("mp-invite-btn");
 
   const game = new NS.Game(canvas, {
     onScore: function (s) {
@@ -147,6 +147,8 @@
       mpLobby.classList.add("hidden");
       mpRoomDisplay.textContent = code;
       mpWaiting.classList.remove("hidden");
+      var showedInvite = NS.MP.showCrazyGamesInviteButton();
+      if (mpInviteBtn) mpInviteBtn.style.display = showedInvite ? "none" : "";
     },
     onConnect: function () {
       mpLobby.classList.add("hidden");
@@ -338,8 +340,18 @@
         if (NS.sdk.available) NS.sdk.gameplayStart();
       } else {
         startRun();
-      }
-    });
+    }
+  });
+  mpInviteBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    var link = NS.MP.getCrazyGamesInviteLink();
+    if (link && navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(function () {
+        mpInviteBtn.textContent = "COPIED!";
+        setTimeout(function () { mpInviteBtn.textContent = "COPY INVITE LINK"; }, 1500);
+      });
+    }
+  });
   }
 
   function primaryAction() {
@@ -551,6 +563,13 @@
   }
 
   (function initBestDisplay() { updateBest(); })();
+
+  (function checkInstantMp() {
+    if (NS.MP.checkInstantMultiplayer()) {
+      mpMyTurn = NS.MP.role === "host";
+      mpDone = false;
+    }
+  })();
 
   let bannerTimer = null;
   function maybeShowBanner() {

@@ -2,94 +2,151 @@
   "use strict";
   window.NS = window.NS || {};
 
-  var peer = null, conn = null, roomCode = null, role = null, connected = false, remoteState = null;
+  var ws = null, roomCode = null, role = null, connected = false, remoteState = null;
   var callbacks = {};
+  var reconnectTimer = null;
+
+  var SERVER = "wss://neon-stack-server.onrender.com";
+  if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+    SERVER = "ws://localhost:3000";
+  }
 
   function init(cb) {
     callbacks = cb || {};
   }
 
-  function genCode() {
-    var c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", s = "";
-    for (var i = 0; i < 4; i++) s += c[Math.floor(Math.random() * c.length)];
-    return "NEON-" + s;
+  function connect() {
+    if (ws && ws.readyState === WebSocket.OPEN) return;
+    try {
+      ws = new WebSocket(SERVER);
+    } catch (e) {
+      callbacks.onError && callbacks.onError(e);
+      return;
+    }
+    ws.onopen = function () {
+      connected = true;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      if (role === "host") { ws.send(JSON.stringify({ type: "host" })); }
+      else if (role === "joiner" && roomCode) {
+        ws.send(JSON.stringify({ type: "join", room: roomCode }));
+      }
+    };
+    ws.onmessage = function (e) {
+      var msg;
+      try { msg = JSON.parse(e.data); } catch (err) { return; }
+      switch (msg.type) {
+        case "hosted":
+          roomCode = msg.room;
+          callbacks.onOpen && callbacks.onOpen(roomCode);
+          break;
+        case "joined":
+          roomCode = msg.room;
+          callbacks.onConnect && callbacks.onConnect();
+          break;
+        case "opponent_joined":
+          callbacks.onConnect && callbacks.onConnect();
+          break;
+        case "state":
+          remoteState = msg.data;
+          callbacks.onRemoteState && callbacks.onRemoteState(remoteState);
+          break;
+        case "turnEnd":
+          callbacks.onTurnEnd && callbacks.onTurnEnd(msg.score, msg.combo);
+          break;
+        case "gameOver":
+          callbacks.onGameOver && callbacks.onGameOver(msg.winner, msg.hs, msg.js);
+          break;
+        case "opponent_left":
+          callbacks.onDisconnect && callbacks.onDisconnect();
+          break;
+        case "error":
+          callbacks.onError && callbacks.onError(new Error(msg.msg));
+          break;
+      }
+    };
+    ws.onclose = function () {
+      connected = false;
+      if (role) {
+        reconnectTimer = setTimeout(function () {
+          if (role) connect();
+        }, 2000);
+      }
+    };
+    ws.onerror = function () {};
   }
 
   function host() {
-    if (peer) disconnect();
-    roomCode = genCode();
+    disconnect();
     role = "host";
-    var id = roomCode.toLowerCase();
-    peer = new Peer(id, { host: "0.peerjs.com", port: 443, path: "/" });
-    peer.on("open", function () { callbacks.onOpen && callbacks.onOpen(roomCode); });
-    peer.on("connection", function (c) {
-      conn = c;
-      connected = true;
-      conn.on("data", onMsg);
-      conn.on("close", onClose);
-      callbacks.onConnect && callbacks.onConnect();
-    });
-    peer.on("error", function (e) { console.error("PeerJS:", e); callbacks.onError && callbacks.onError(e); });
-    return roomCode;
+    connect();
   }
 
   function join(code) {
-    if (peer) disconnect();
+    disconnect();
     role = "joiner";
     roomCode = code;
-    peer = new Peer({ host: "0.peerjs.com", port: 443, path: "/" });
-    peer.on("open", function () {
-      conn = peer.connect(code.toLowerCase());
-      conn.on("open", function () {
-        connected = true;
-        conn.on("data", onMsg);
-        conn.on("close", onClose);
-        callbacks.onConnect && callbacks.onConnect();
-      });
-    });
-    peer.on("error", function (e) { console.error("PeerJS:", e); callbacks.onError && callbacks.onError(e); });
+    connect();
   }
 
-  function onMsg(data) {
-    switch (data.t) {
-      case "s":
-        remoteState = data.d;
-        callbacks.onRemoteState && callbacks.onRemoteState(remoteState);
-        break;
-      case "done":
-        callbacks.onTurnEnd && callbacks.onTurnEnd(data.s, data.c);
-        break;
-      case "over":
-        callbacks.onGameOver && callbacks.onGameOver(data.w, data.hs, data.js);
-        break;
-    }
-  }
-
-  function onClose() {
-    connected = false;
-    callbacks.onDisconnect && callbacks.onDisconnect();
+  function send(type, data) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify(Object.assign({ type: type }, data)));
   }
 
   function sendState(state) {
-    if (!conn || !connected) return;
-    conn.send({ t: "s", d: state });
+    send("state", { data: state });
   }
 
-  function sendTurnEnd(score, maxCombo) {
-    if (!conn || !connected) return;
-    conn.send({ t: "done", s: score, c: maxCombo });
+  function sendTurnEnd(score, combo) {
+    send("turnEnd", { score: score, combo: combo });
   }
 
   function sendGameOver(winner, hostScore, joinerScore) {
-    if (!conn || !connected) return;
-    conn.send({ t: "over", w: winner, hs: hostScore, js: joinerScore });
+    send("gameOver", { winner: winner, hs: hostScore, js: joinerScore });
   }
 
   function disconnect() {
-    if (conn) conn.close();
-    if (peer) peer.destroy();
-    peer = null; conn = null; connected = false; remoteState = null;
-    roomCode = null; role = null;
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    if (ws) { ws.onclose = null; ws.close(); ws = null; }
+    connected = false;
+    remoteState = null;
+    roomCode = null;
+    role = null;
+  }
+
+  function getCrazyGamesInviteLink() {
+    if (!roomCode || !window.CrazyGames || !CrazyGames.SDK || !CrazyGames.SDK.game) return null;
+    try {
+      if (CrazyGames.SDK.game.inviteLink) {
+        return CrazyGames.SDK.game.inviteLink.get ? CrazyGames.SDK.game.inviteLink.get() : null;
+      }
+    } catch (e) { return null; }
+    return null;
+  }
+
+  function showCrazyGamesInviteButton() {
+    if (!roomCode || !window.CrazyGames || !CrazyGames.SDK || !CrazyGames.SDK.game) return false;
+    try {
+      if (CrazyGames.SDK.game.inviteButton && CrazyGames.SDK.game.inviteButton.show) {
+        CrazyGames.SDK.game.inviteButton.show({ room: roomCode });
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function checkInstantMultiplayer() {
+    if (window.CrazyGames && CrazyGames.SDK && CrazyGames.SDK.game) {
+      if (CrazyGames.SDK.game.isInstantMultiplayer) {
+        var params = CrazyGames.SDK.game.inviteParams || {};
+        var code = params.room;
+        if (code) {
+          join(code);
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   NS.MP = {
@@ -100,6 +157,9 @@
     sendTurnEnd: sendTurnEnd,
     sendGameOver: sendGameOver,
     disconnect: disconnect,
+    getCrazyGamesInviteLink: getCrazyGamesInviteLink,
+    showCrazyGamesInviteButton: showCrazyGamesInviteButton,
+    checkInstantMultiplayer: checkInstantMultiplayer,
     get connected() { return connected; },
     get role() { return role; },
     get roomCode() { return roomCode; },
