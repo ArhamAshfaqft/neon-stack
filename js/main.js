@@ -147,8 +147,9 @@
       mpLobby.classList.add("hidden");
       mpRoomDisplay.textContent = code;
       mpWaiting.classList.remove("hidden");
-      var showedInvite = NS.MP.showCrazyGamesInviteButton();
-      if (mpInviteBtn) mpInviteBtn.style.display = showedInvite ? "none" : "";
+      // Try SDK invite button; if not available, show our manual copy button
+      var showed = NS.MP.showCrazyGamesInviteButton();
+      if (mpInviteBtn) mpInviteBtn.style.display = showed ? "none" : "";
     },
     onConnect: function () {
       mpLobby.classList.add("hidden");
@@ -345,11 +346,24 @@
   mpInviteBtn.addEventListener("click", function (e) {
     e.stopPropagation();
     var link = NS.MP.getCrazyGamesInviteLink();
-    if (link && navigator.clipboard) {
-      navigator.clipboard.writeText(link).then(function () {
+    if (link) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(link).then(function () {
+          mpInviteBtn.textContent = "COPIED!";
+          setTimeout(function () { mpInviteBtn.textContent = "COPY INVITE LINK"; }, 1500);
+        });
+      } else {
+        mpInviteBtn.textContent = link;
+        setTimeout(function () { mpInviteBtn.textContent = "COPY INVITE LINK"; }, 3000);
+      }
+    } else {
+      // Fallback: copy room code
+      var code = NS.MP.roomCode;
+      if (code && navigator.clipboard) {
+        navigator.clipboard.writeText("https://www.crazygames.com/game/neon-stack?room=" + code);
         mpInviteBtn.textContent = "COPIED!";
         setTimeout(function () { mpInviteBtn.textContent = "COPY INVITE LINK"; }, 1500);
-      });
+      }
     }
   });
   }

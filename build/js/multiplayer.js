@@ -13,6 +13,21 @@
 
   function init(cb) {
     callbacks = cb || {};
+
+    // Register CrazyGames room join listener (friend joins while already in game)
+    if (typeof CrazyGames !== "undefined" && CrazyGames.SDK && CrazyGames.SDK.game && CrazyGames.SDK.game.addJoinRoomListener) {
+      CrazyGames.SDK.game.addJoinRoomListener(function (params) {
+        var code = params && params.room;
+        if (code && !connected) {
+          join(code);
+        }
+      });
+    }
+  }
+
+  function cg() {
+    if (typeof CrazyGames !== "undefined" && CrazyGames.SDK && CrazyGames.SDK.game) return CrazyGames.SDK.game;
+    return null;
   }
 
   function connect() {
@@ -37,6 +52,11 @@
       switch (msg.type) {
         case "hosted":
           roomCode = msg.room;
+          // Tell CrazyGames our room is open for invites
+          var g = cg();
+          if (g && g.updateRoom) {
+            g.updateRoom({ roomId: roomCode, isJoinable: true, inviteParams: { room: roomCode } });
+          }
           callbacks.onOpen && callbacks.onOpen(roomCode);
           break;
         case "joined":
@@ -44,6 +64,10 @@
           callbacks.onConnect && callbacks.onConnect();
           break;
         case "opponent_joined":
+          // Room is now full, no longer joinable
+          var g = cg();
+          if (g && g.updateRoom) g.updateRoom({ isJoinable: false });
+          if (g && g.hideInviteButton) g.hideInviteButton();
           callbacks.onConnect && callbacks.onConnect();
           break;
         case "state":
@@ -93,70 +117,56 @@
     ws.send(JSON.stringify(Object.assign({ type: type }, data)));
   }
 
-  function sendState(state) {
-    send("state", { data: state });
-  }
-
-  function sendTurnEnd(score, combo) {
-    send("turnEnd", { score: score, combo: combo });
-  }
-
-  function sendGameOver(winner, hostScore, joinerScore) {
-    send("gameOver", { winner: winner, hs: hostScore, js: joinerScore });
-  }
+  function sendState(state) { send("state", { data: state }); }
+  function sendTurnEnd(score, combo) { send("turnEnd", { score: score, combo: combo }); }
+  function sendGameOver(winner, hs, js) { send("gameOver", { winner: winner, hs: hs, js: js }); }
 
   function disconnect() {
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     if (ws) { ws.onclose = null; ws.close(); ws = null; }
-    connected = false;
-    remoteState = null;
-    roomCode = null;
-    role = null;
+    connected = false; remoteState = null;
+    // Tell CrazyGames we left the room
+    var g = cg();
+    if (g && g.leftRoom) g.leftRoom();
+    if (g && g.hideInviteButton) g.hideInviteButton();
+    roomCode = null; role = null;
   }
 
   function getCrazyGamesInviteLink() {
-    if (!roomCode || !window.CrazyGames || !CrazyGames.SDK || !CrazyGames.SDK.game) return null;
-    try {
-      if (CrazyGames.SDK.game.inviteLink) {
-        return CrazyGames.SDK.game.inviteLink.get ? CrazyGames.SDK.game.inviteLink.get() : null;
-      }
-    } catch (e) { return null; }
+    if (!roomCode) return null;
+    var g = cg();
+    if (g && g.inviteLink) {
+      try { return g.inviteLink({ room: roomCode }); } catch (e) {}
+    }
     return null;
   }
 
   function showCrazyGamesInviteButton() {
-    if (!roomCode || !window.CrazyGames || !CrazyGames.SDK || !CrazyGames.SDK.game) return false;
-    try {
-      if (CrazyGames.SDK.game.inviteButton && CrazyGames.SDK.game.inviteButton.show) {
-        CrazyGames.SDK.game.inviteButton.show({ room: roomCode });
-        return true;
-      }
-    } catch (e) {}
+    if (!roomCode) return false;
+    var g = cg();
+    if (g && g.showInviteButton) {
+      try { g.showInviteButton({ room: roomCode }); return true; } catch (e) {}
+    }
     return false;
   }
 
   function checkInstantMultiplayer() {
-    if (window.CrazyGames && CrazyGames.SDK && CrazyGames.SDK.game) {
-      if (CrazyGames.SDK.game.isInstantMultiplayer) {
-        var params = CrazyGames.SDK.game.inviteParams || {};
-        var code = params.room;
-        if (code) {
-          join(code);
-          return true;
-        }
+    var g = cg();
+    if (g && g.isInstantMultiplayer) {
+      var params = g.inviteParams || {};
+      var code = params.room || g.getInviteParam && g.getInviteParam("room");
+      if (code) {
+        setTimeout(function () { join(code); }, 500);
+        return true;
       }
     }
     return false;
   }
 
   NS.MP = {
-    init: init,
-    host: host,
-    join: join,
-    sendState: sendState,
-    sendTurnEnd: sendTurnEnd,
-    sendGameOver: sendGameOver,
-    disconnect: disconnect,
+    init: init, host: host, join: join,
+    sendState: sendState, sendTurnEnd: sendTurnEnd,
+    sendGameOver: sendGameOver, disconnect: disconnect,
     getCrazyGamesInviteLink: getCrazyGamesInviteLink,
     showCrazyGamesInviteButton: showCrazyGamesInviteButton,
     checkInstantMultiplayer: checkInstantMultiplayer,
