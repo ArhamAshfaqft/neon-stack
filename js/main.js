@@ -54,7 +54,7 @@
   var mpRoomDisplay = $("mp-room-display"), mpAgainBtn = $("mp-again-btn"), mpMenuBtn = $("mp-menu-btn");
   var mpResultTitle = $("mp-result-title"), mpResultWinner = $("mp-result-winner");
   var mpMyScoreEl = $("mp-my-score"), mpOppScoreEl = $("mp-opp-score");
-  var mpBtn = $("mp-btn"), mpTurnLabel = $("mp-turn-label"), mpOppScoreElFull = $("mp-opp-score-full");
+  var mpBtn = $("mp-btn"), mpTurnLabel = $("mp-turn-label"), mpTurnText = $("mp-turn-text"), mpOppScoreElFull = $("mp-opp-score-full");
 
   const game = new NS.Game(canvas, {
     onScore: function (s) {
@@ -156,8 +156,9 @@
     },
     onRemoteState: function (state) {
       game.remoteState = state;
-      if (!mpMyTurn && mpOppScoreElFull) {
-        mpOppScoreElFull.textContent = state.score;
+      if (!mpMyTurn) {
+        if (mpOppScoreElFull) mpOppScoreElFull.textContent = state.score;
+        if (mpDone && mpTurnText) mpTurnText.textContent = (NS.MP.role === "host" ? "PLAYER 2" : "PLAYER 1") + "'S TURN";
       }
     },
     onTurnEnd: function (score, combo) {
@@ -222,10 +223,8 @@
     hud.classList.remove("show");
     pauseBtn.style.display = "none";
     hideScreens();
-    if (mpTurnLabel) {
-      mpTurnLabel.classList.remove("hidden");
-      mpTurnLabel.textContent = (NS.MP.role === "joiner" ? "PLAYER 1" : "PLAYER 2") + "'S TURN";
-    }
+    if (mpTurnLabel) mpTurnLabel.classList.remove("hidden");
+    if (mpTurnText) mpTurnText.textContent = (NS.MP.role === "joiner" ? "PLAYER 1" : "PLAYER 2") + "'S TURN";
     if (mpOppScoreElFull) mpOppScoreElFull.textContent = "0";
   }
 
@@ -245,10 +244,8 @@
     NS.MP.sendTurnEnd(mpMyScore, game.maxCombo);
     hud.classList.remove("show");
     pauseBtn.style.display = "none";
-    if (mpTurnLabel) {
-      mpTurnLabel.classList.remove("hidden");
-      mpTurnLabel.textContent = "Waiting for opponent...";
-    }
+    if (mpTurnLabel) mpTurnLabel.classList.remove("hidden");
+    if (mpTurnText) mpTurnText.textContent = "Waiting for opponent...";
   }
 
   function showMpResult(won) {
