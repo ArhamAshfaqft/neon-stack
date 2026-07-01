@@ -55,6 +55,7 @@
   var mpResultTitle = $("mp-result-title"), mpResultWinner = $("mp-result-winner");
   var mpMyScoreEl = $("mp-my-score"), mpOppScoreEl = $("mp-opp-score");
   var mpBtn = $("mp-btn"), mpTurnLabel = $("mp-turn-label"), mpTurnText = $("mp-turn-text"), mpOppScoreElFull = $("mp-opp-score-full");
+  var mpCopyBtn = $("mp-copy-btn");
 
   const game = new NS.Game(canvas, {
     onScore: function (s) {
@@ -143,6 +144,7 @@
 
   NS.MP.init({
     onOpen: function (code) {
+      mpLobby.classList.add("hidden");
       mpRoomDisplay.textContent = code;
       mpWaiting.classList.remove("hidden");
     },
@@ -443,6 +445,25 @@
     NS.MP.disconnect();
     mpWaiting.classList.add("hidden");
     titleScreen.classList.remove("hidden");
+  });
+  mpCopyBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    var code = NS.MP.roomCode;
+    if (code && navigator.clipboard) {
+      navigator.clipboard.writeText(code).then(function () {
+        mpCopyBtn.textContent = "COPIED!";
+        setTimeout(function () { mpCopyBtn.textContent = "COPY CODE"; }, 1500);
+      });
+    } else if (code) {
+      var ta = document.createElement("textarea");
+      ta.value = code;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      mpCopyBtn.textContent = "COPIED!";
+      setTimeout(function () { mpCopyBtn.textContent = "COPY CODE"; }, 1500);
+    }
   });
   mpAgainBtn.addEventListener("click", function (e) {
     e.stopPropagation();
