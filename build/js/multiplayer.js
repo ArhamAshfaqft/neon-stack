@@ -4,12 +4,8 @@
 
   var peer = null, conn = null, roomCode = null, role = null, connected = false, remoteState = null;
   var callbacks = {};
-  var oppCanvas, oppCtx;
-  var BLOCK_H = 30;
 
-  function init(opponentCanvas, cb) {
-    oppCanvas = opponentCanvas;
-    oppCtx = opponentCanvas.getContext("2d");
+  function init(cb) {
     callbacks = cb || {};
   }
 
@@ -58,7 +54,6 @@
     switch (data.t) {
       case "s":
         remoteState = data.d;
-        drawOpponent(remoteState);
         callbacks.onRemoteState && callbacks.onRemoteState(remoteState);
         break;
       case "done":
@@ -95,48 +90,6 @@
     if (peer) peer.destroy();
     peer = null; conn = null; connected = false; remoteState = null;
     roomCode = null; role = null;
-  }
-
-  function drawOpponent(s) {
-    if (!oppCtx) return;
-    var W = oppCanvas.width, H = oppCanvas.height;
-    var sx = W / s.W, sy = H / s.H;
-    oppCtx.fillStyle = "#07060f";
-    oppCtx.fillRect(0, 0, W, H);
-    oppCtx.shadowBlur = 0;
-    for (var i = 0; i < s.blocks.length; i++) {
-      var b = s.blocks[i];
-      var x = b.x * sx, y = (s.groundY - (i + 1) * BLOCK_H - s.camY) * sy, bw = b.w * sx;
-      oppCtx.fillStyle = "hsl(" + b.hue + ",80%,55%)";
-      oppCtx.shadowColor = "hsla(" + b.hue + ",80%,55%,.5)";
-      oppCtx.shadowBlur = 6 * sx;
-      oppCtx.fillRect(x, y, bw, BLOCK_H * sy);
-      oppCtx.shadowBlur = 0;
-    }
-    if (s.moving && s.alive) {
-      var m = s.moving;
-      var mx = m.x * sx, my = (s.groundY - s.blocks.length * BLOCK_H - s.camY) * sy, mw = m.w * sx;
-      oppCtx.fillStyle = "hsl(" + m.hue + ",90%,70%)";
-      oppCtx.shadowColor = "hsla(" + m.hue + ",90%,70%,.8)";
-      oppCtx.shadowBlur = 10 * sx;
-      oppCtx.fillRect(mx, my, mw, BLOCK_H * sy);
-      oppCtx.shadowBlur = 0;
-    }
-    if (s.falling) {
-      var f = s.falling;
-      var fx = f.x * sx, fy = (f.y - s.camY) * sy, fw = f.w * sx;
-      oppCtx.save();
-      oppCtx.translate(fx + fw / 2, fy + BLOCK_H * sy / 2);
-      oppCtx.rotate(f.rot || 0);
-      oppCtx.fillStyle = "hsl(" + f.hue + ",80%,55%)";
-      oppCtx.fillRect(-fw / 2, -BLOCK_H * sy / 2, fw, BLOCK_H * sy);
-      oppCtx.restore();
-    }
-    oppCtx.fillStyle = "#e8e8ff";
-    oppCtx.font = "bold " + Math.round(13 * sy) + "px Outfit, sans-serif";
-    oppCtx.textAlign = "center";
-    oppCtx.shadowBlur = 0;
-    oppCtx.fillText("SCORE " + s.score, W / 2, 20 * sy);
   }
 
   NS.MP = {

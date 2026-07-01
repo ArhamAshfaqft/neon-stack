@@ -49,6 +49,7 @@ const REF_W = 500;
     this.mode = "normal";
     this.targetScore = 0;
     this.targetPlayer = 1;
+    this.remoteState = null;
 
     this._bindResize();
     this.resize();
@@ -391,44 +392,66 @@ const REF_W = 500;
     }
     ctx.translate(sx, sy);
 
-    const cam = this.camY;
+    var rs = this.remoteState;
+    const cam = rs ? rs.camY : this.camY;
+    const groundY = rs ? rs.groundY : this.groundY;
     ctx.save();
     ctx.translate(0, -cam);
 
-    for (let i = 0; i < this.blocks.length; i++) {
-      const b = this.blocks[i];
-      const yTop = this.groundY - (i + 1) * BLOCK_H;
-      this.drawBlock(ctx, b.x, yTop, b.w, BLOCK_H, b.hue, 1);
-    }
+    if (rs) {
+      for (let i = 0; i < rs.blocks.length; i++) {
+        const b = rs.blocks[i];
+        const yTop = groundY - (i + 1) * BLOCK_H;
+        this.drawBlock(ctx, b.x, yTop, b.w, BLOCK_H, b.hue, 1);
+      }
+      if (rs.moving && rs.alive) {
+        const yTop = groundY - rs.blocks.length * BLOCK_H;
+        this.drawBlock(ctx, rs.moving.x, yTop, rs.moving.w, BLOCK_H, rs.moving.hue, 1);
+        this.drawShadow(ctx, rs.moving.x, groundY - rs.blocks.length * BLOCK_H, rs.moving.w, rs.moving.hue);
+      }
+      if (rs.falling) {
+        ctx.save();
+        ctx.translate(rs.falling.x + rs.falling.w / 2, rs.falling.y + BLOCK_H / 2);
+        ctx.rotate(rs.falling.rot || 0);
+        this.drawBlock(ctx, -rs.falling.w / 2, -BLOCK_H / 2, rs.falling.w, BLOCK_H, rs.falling.hue, 1);
+        ctx.restore();
+      }
+    } else {
+      for (let i = 0; i < this.blocks.length; i++) {
+        const b = this.blocks[i];
+        const yTop = this.groundY - (i + 1) * BLOCK_H;
+        this.drawBlock(ctx, b.x, yTop, b.w, BLOCK_H, b.hue, 1);
+      }
 
-    if (this.moving && this.state === "playing") {
-      const yTop = this.topY() - BLOCK_H;
-      const bob = Math.sin(this.bgPhase * 6) * 1.2;
-      this.drawBlock(ctx, this.moving.x, yTop + bob, this.moving.w, BLOCK_H, this.moving.hue, 1);
-      this.drawShadow(ctx, this.moving.x, this.topY(), this.moving.w, this.moving.hue);
-    }
+      if (this.moving && this.state === "playing") {
+        const yTop = this.topY() - BLOCK_H;
+        const bob = Math.sin(this.bgPhase * 6) * 1.2;
+        this.drawBlock(ctx, this.moving.x, yTop + bob, this.moving.w, BLOCK_H, this.moving.hue, 1);
+        this.drawShadow(ctx, this.moving.x, this.topY(), this.moving.w, this.moving.hue);
+      }
 
-    for (let i = 0; i < this.particles.length; i++) {
-      const p = this.particles[i];
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, p.alpha);
-      ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
-      ctx.rotate(p.rot);
-      this.drawBlock(ctx, -p.w / 2, -p.h / 2, p.w, p.h, p.hue, Math.max(0, p.alpha));
-      ctx.restore();
-    }
+      for (let i = 0; i < this.particles.length; i++) {
+        const p = this.particles[i];
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
+        ctx.rotate(p.rot);
+        this.drawBlock(ctx, -p.w / 2, -p.h / 2, p.w, p.h, p.hue, Math.max(0, p.alpha));
+        ctx.restore();
+      }
 
-    if (this.falling) {
-      ctx.save();
-      ctx.translate(this.falling.x + this.falling.w / 2, this.falling.y + BLOCK_H / 2);
-      ctx.rotate(this.falling.rot);
-      this.drawBlock(ctx, -this.falling.w / 2, -BLOCK_H / 2, this.falling.w, BLOCK_H, this.falling.hue, 1);
-      ctx.restore();
+      if (this.falling) {
+        ctx.save();
+        ctx.translate(this.falling.x + this.falling.w / 2, this.falling.y + BLOCK_H / 2);
+        ctx.rotate(this.falling.rot);
+        this.drawBlock(ctx, -this.falling.w / 2, -BLOCK_H / 2, this.falling.w, BLOCK_H, this.falling.hue, 1);
+        ctx.restore();
+      }
     }
 
     ctx.restore();
 
-    const groundScreenY = this.groundY - cam;
+    const groundScreenY = groundY - cam;
     if (groundScreenY < H) {
       const g = ctx.createLinearGradient(0, groundScreenY, 0, H);
       g.addColorStop(0, "rgba(120,180,255,0.18)");

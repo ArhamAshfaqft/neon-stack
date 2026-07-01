@@ -54,7 +54,7 @@
   var mpRoomDisplay = $("mp-room-display"), mpAgainBtn = $("mp-again-btn"), mpMenuBtn = $("mp-menu-btn");
   var mpResultTitle = $("mp-result-title"), mpResultWinner = $("mp-result-winner");
   var mpMyScoreEl = $("mp-my-score"), mpOppScoreEl = $("mp-opp-score");
-  var mpBtn = $("mp-btn"), oppCanvas = $("opponent-canvas");
+  var mpBtn = $("mp-btn"), mpTurnLabel = $("mp-turn-label"), mpOppScoreElFull = $("mp-opp-score-full");
 
   const game = new NS.Game(canvas, {
     onScore: function (s) {
@@ -141,7 +141,7 @@
     }
   });
 
-  NS.MP.init(oppCanvas, {
+  NS.MP.init({
     onOpen: function (code) {
       mpRoomDisplay.textContent = code;
       mpWaiting.classList.remove("hidden");
@@ -154,9 +154,15 @@
       mpDone = false;
       startMpGame();
     },
-    onRemoteState: function () {},
+    onRemoteState: function (state) {
+      game.remoteState = state;
+      if (!mpMyTurn && mpOppScoreElFull) {
+        mpOppScoreElFull.textContent = state.score;
+      }
+    },
     onTurnEnd: function (score, combo) {
       mpOppScore = score;
+      game.remoteState = null;
       if (!mpDone) {
         mpMyTurn = true;
         startMpRun();
@@ -187,9 +193,6 @@
     mpLobby.classList.add("hidden");
     mpWaiting.classList.add("hidden");
     mpResult.classList.add("hidden");
-    oppCanvas.width = 160;
-    oppCanvas.height = 240;
-    oppCanvas.classList.add("visible");
     pauseBtn.style.display = "none";
     hud.classList.remove("show");
     if (mpMyTurn) {
@@ -203,6 +206,7 @@
   function startMpRun() {
     NS.audio.init();
     NS.audio.start();
+    game.remoteState = null;
     hideScreens();
     pauseOverlay.classList.add("hidden");
     showHud();
@@ -211,21 +215,18 @@
     game.newRun();
     if (NS.sdk.available) NS.sdk.gameplayStart();
     clearBanners();
-    document.querySelector(".mp-watching-overlay") && (document.querySelector(".mp-watching-overlay").classList.remove("visible"));
+    mpTurnLabel && mpTurnLabel.classList.add("hidden");
   }
 
   function showMpWatching() {
     hud.classList.remove("show");
     pauseBtn.style.display = "none";
     hideScreens();
-    var w = document.querySelector(".mp-watching-overlay");
-    if (!w) {
-      w = document.createElement("div");
-      w.className = "mp-watching-overlay";
-      w.textContent = "WATCHING";
-      document.getElementById("game-area").appendChild(w);
+    if (mpTurnLabel) {
+      mpTurnLabel.classList.remove("hidden");
+      mpTurnLabel.textContent = (NS.MP.role === "joiner" ? "PLAYER 1" : "PLAYER 2") + "'S TURN";
     }
-    w.classList.add("visible");
+    if (mpOppScoreElFull) mpOppScoreElFull.textContent = "0";
   }
 
   function mpLoop() {
@@ -240,23 +241,20 @@
     mpDone = true;
     mpMyTurn = false;
     mpMyScore = game.score;
+    game.remoteState = null;
     NS.MP.sendTurnEnd(mpMyScore, game.maxCombo);
-    var w = document.querySelector(".mp-watching-overlay");
-    if (!w) {
-      w = document.createElement("div");
-      w.className = "mp-watching-overlay";
-      document.getElementById("game-area").appendChild(w);
-    }
-    w.textContent = "Waiting for opponent...";
-    w.classList.add("visible");
     hud.classList.remove("show");
     pauseBtn.style.display = "none";
+    if (mpTurnLabel) {
+      mpTurnLabel.classList.remove("hidden");
+      mpTurnLabel.textContent = "Waiting for opponent...";
+    }
   }
 
   function showMpResult(won) {
     mpRaf = null; mpMyTurn = false;
-    oppCanvas.classList.remove("visible");
-    document.querySelector(".mp-watching-overlay") && (document.querySelector(".mp-watching-overlay").classList.remove("visible"));
+    game.remoteState = null;
+    mpTurnLabel && mpTurnLabel.classList.add("hidden");
     hud.classList.remove("show");
     pauseBtn.style.display = "none";
     hideScreens();
@@ -278,11 +276,11 @@
     NS.MP.disconnect();
     mpRaf = null;
     mpMyTurn = false; mpDone = false;
-    oppCanvas.classList.remove("visible");
+    game.remoteState = null;
+    mpTurnLabel && mpTurnLabel.classList.add("hidden");
     mpLobby.classList.add("hidden");
     mpWaiting.classList.add("hidden");
     mpResult.classList.add("hidden");
-    document.querySelector(".mp-watching-overlay") && (document.querySelector(".mp-watching-overlay").classList.remove("visible"));
     returnToMenu();
   }
 
@@ -298,8 +296,8 @@
   }
 
   function clearMpOverlays() {
-    oppCanvas.classList.remove("visible");
-    document.querySelector(".mp-watching-overlay") && (document.querySelector(".mp-watching-overlay").classList.remove("visible"));
+    game.remoteState = null;
+    mpTurnLabel && mpTurnLabel.classList.add("hidden");
   }
 
   function showDiff() {
