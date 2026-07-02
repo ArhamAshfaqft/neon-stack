@@ -80,6 +80,15 @@
         case "gameOver":
           callbacks.onGameOver && callbacks.onGameOver(msg.winner, msg.hs, msg.js);
           break;
+        case "rematchReq":
+          callbacks.onRematchRequest && callbacks.onRematchRequest();
+          break;
+        case "rematchAccept":
+          callbacks.onRematchAccept && callbacks.onRematchAccept();
+          break;
+        case "rematchDecline":
+          callbacks.onRematchDecline && callbacks.onRematchDecline();
+          break;
         case "opponent_left":
           callbacks.onDisconnect && callbacks.onDisconnect();
           break;
@@ -120,6 +129,9 @@
   function sendState(state) { send("state", { data: state }); }
   function sendTurnEnd(score, combo) { send("turnEnd", { score: score, combo: combo }); }
   function sendGameOver(winner, hs, js) { send("gameOver", { winner: winner, hs: hs, js: js }); }
+  function sendRematchRequest() { send("rematchReq", {}); }
+  function sendRematchAccept() { send("rematchAccept", {}); }
+  function sendRematchDecline() { send("rematchDecline", {}); }
 
   function disconnect() {
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
@@ -167,6 +179,9 @@
     init: init, host: host, join: join,
     sendState: sendState, sendTurnEnd: sendTurnEnd,
     sendGameOver: sendGameOver, disconnect: disconnect,
+    sendRematchRequest: sendRematchRequest,
+    sendRematchAccept: sendRematchAccept,
+    sendRematchDecline: sendRematchDecline,
     getCrazyGamesInviteLink: getCrazyGamesInviteLink,
     showCrazyGamesInviteButton: showCrazyGamesInviteButton,
     checkInstantMultiplayer: checkInstantMultiplayer,

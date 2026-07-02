@@ -89,6 +89,16 @@ wss.on("connection", (ws) => {
         if (target) target.send(JSON.stringify({ type: "gameOver", winner: msg.winner, hs: msg.hs, js: msg.js }));
         break;
       }
+      case "rematchReq":
+      case "rematchAccept":
+      case "rematchDecline": {
+        if (!roomCode || !playerId) return;
+        const room = rooms.get(roomCode);
+        if (!room) return;
+        const target = playerId === "host" ? room.joiner : room.host;
+        if (target) target.send(JSON.stringify({ type: msg.type }));
+        break;
+      }
     }
   });
 
