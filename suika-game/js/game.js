@@ -143,8 +143,43 @@
     this.startLoop();
   };
 
+  Game.prototype.startSandbox = function () {
+    this.fruits = [];
+    this.particles = [];
+    this.popups = [];
+    this.score = 0;
+    this.combo = 0;
+    this.flash = 0;
+    this.shake = 0;
+    this.settledTimer = 0;
+    this.canDrop = true;
+    this.nextType = 0;
+    this.nextPreviewIdx = 0;
+    this.state = 'sandbox';
+    this.hooks.onScore && this.hooks.onScore(0);
+    this.startLoop();
+  };
+
+  Game.prototype.spawnFruits = function (type, count) {
+    if (this.state !== 'sandbox') return;
+    if (type < 0 || type >= FRUITS.length) return;
+    var ft = FRUITS[type];
+    var r = ft.r * this.scale;
+    count = Math.min(count || 1, 50);
+    for (var i = 0; i < count; i++) {
+      var x = r + Math.random() * (this.W - r * 2);
+      this.fruits.push({
+        x: x, y: -r * 2 - i * r * 3,
+        vx: (Math.random() - 0.5) * 60,
+        vy: -Math.random() * 100,
+        r: r, type: type, merged: false,
+        hue: 0
+      });
+    }
+  };
+
   Game.prototype.dropFruit = function () {
-    if (this.state !== 'playing' || !this.canDrop) return;
+    if ((this.state !== 'playing' && this.state !== 'sandbox') || !this.canDrop) return;
     var type = this.nextType;
     var f = FRUITS[type];
     var r = f.r * this.scale;
@@ -271,7 +306,7 @@
       if (p.y > this.H + 30) { p.y = -20; p.x = Math.random() * this.W; }
     }
 
-    if (this.state === 'playing') {
+    if (this.state === 'playing' || this.state === 'sandbox') {
       this.shake = Math.max(0, this.shake - dt * 30);
       this.physicsStep(dt);
 
@@ -292,8 +327,10 @@
       for (var i = 0; i < this.fruits.length; i++) {
         var f = this.fruits[i];
         if (f.y - f.r < this.dangerY && Math.abs(f.vy) < 10 && this.settledTimer > 0.8) {
-          this.gameOver();
-          return;
+          if (this.state !== 'sandbox') {
+            this.gameOver();
+            return;
+          }
         }
       }
 
@@ -351,7 +388,7 @@
   };
 
   Game.prototype.hitTest = function (x, y) {
-    var btns = { play: this._playBtn, retry: this._retryBtn, menu: this._menuBtn };
+    var btns = { play: this._playBtn, retry: this._retryBtn, menu: this._menuBtn, sandbox: this._sandboxBtn };
     for (var key in btns) {
       var b = btns[key];
       if (b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return key;
@@ -392,7 +429,9 @@
       return;
     }
 
-    this.renderPlayArea(ctx, W, H);
+    if (this.state === 'playing' || this.state === 'sandbox') {
+      this.renderPlayArea(ctx, W, H);
+    }
 
     for (var i = 0; i < this.fruits.length; i++) {
       this.drawFruit(ctx, this.fruits[i]);
@@ -507,6 +546,23 @@
     ctx.fillText('cherry &rarr; strawberry &rarr; grape &rarr; orange &rarr; apple', W / 2, H * 0.72);
     ctx.fillText('pear &rarr; peach &rarr; melon &rarr; watermelon', W / 2, H * 0.76);
 
+    var sbw = Math.min(W * 0.35, 140);
+    var sbh = Math.min(H * 0.045, 36);
+    var sbx = (W - sbw) / 2;
+    var sby = H * 0.8;
+    this._sandboxBtn = { x: sbx, y: sby, w: sbw, h: sbh };
+
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = 'rgba(255,138,92,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(sbx, sby, sbw, sbh, sbh / 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#d4a574';
+    ctx.font = 'bold ' + Math.round(Math.min(W * 0.03, 13)) + 'px Outfit, sans-serif';
+    ctx.fillText('SANDBOX', W / 2, sby + sbh * 0.62);
+
     ctx.restore();
   };
 
@@ -601,7 +657,7 @@
   };
 
   Game.prototype.renderDropPreview = function (ctx, W, H) {
-    if (this.state !== 'playing' || !this.canDrop) return;
+    if ((this.state !== 'playing' && this.state !== 'sandbox') || !this.canDrop) return;
     var ft = FRUITS[this.nextType];
     var r = ft.r * this.scale;
     var px = this.dropX;
